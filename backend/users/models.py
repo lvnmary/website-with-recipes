@@ -1,11 +1,10 @@
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.conf import settings
 
 from .constants import (
     USERNAME_LENGTH, FNAME_LENGTH, LNAME_LENGTH, EMAIL_LENGTH,
-    USER, ADMIN, ROLES
+    PASSWORD_LENGTH, USER, ADMIN, ROLES
 )
 
 
@@ -42,9 +41,16 @@ class User(AbstractUser):
         default=USER,
         blank=True
     )
+    password = models.CharField(
+        max_length=PASSWORD_LENGTH,
+        verbose_name='Пароль'
+    )
+    is_subcribed = models.BooleanField(
+        default=False,
+    )
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
+    REQUIRED_FIELDS = ['username', 'first_name', 'last_name', ]
 
     @property
     def is_admin(self):
@@ -59,12 +65,23 @@ class User(AbstractUser):
         return self.username
 
 
-class Follow(models.Model):
+class Subscribe(models.Model):
     user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='followers')
-    following = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='follower')
+    following_user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='following')
 
     class Meta:
         verbose_name = 'Подписчик'
         verbose_name_plural = 'Подписчики'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'following_user'],
+                name='unique_subscribe'
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f'{self.user} подписан на {self.following_user}'
+        )

@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "djoser",
+    # "django_filters",
 ]
 
 AUTH_USER_MODEL = "users.User"
@@ -114,28 +115,23 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
     ],
 
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework.authentication.TokenAuthentication",
     ),
 }
 
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
-    'AUTH_HEADER_TYPES': ('Bearer',),
+DJOSER = {
+    "LOGIN_FIELD": "email",
+    "SERIALIZERS": {
+        'user': 'users.serializers.UserSerializer',
+        'current_user': 'users.serializers.UserSerializer',
+    },
+    "PERMISSIONS": {
+        "user": ("rest_framework.permissions.IsAuthenticatedOrReadOnly",),
+        "user_list": ("rest_framework.permissions.IsAuthenticatedOrReadOnly",),
+    }
 }
-
-# DJOSER = {
-#     'USER_CREATE_PASSWORD_RETYPE': True,
-#     'SET_PASSWORD_RETYPE': True,
-#     'PASSWORD_RESET_CONFIRM_RETYPE': True,
-#     'SEND_ACTIVATION_EMAIL': False,
-#     'SERIALIZERS': {
-#         'user_create': 'path.to.your.UserCreateSerializer',
-#         'user': 'path.to.your.UserSerializer',
-#         'current_user': 'path.to.your.UserSerializer',
-#     },
-# }
