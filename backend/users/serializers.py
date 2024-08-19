@@ -53,5 +53,15 @@ class SubscribeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Subscribe
-        fields = ('id', 'user', 'following_user')
+        fields = ('id', 'user', 'following_user',)
         read_only_fields = '__all__'
+
+
+class UserSubscribeSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = (
+            'id', 'username', 'first_name',
+            'last_name', 'email', 'is_subcribed',
+        )
