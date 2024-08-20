@@ -45,7 +45,7 @@ class User(AbstractUser):
         max_length=PASSWORD_LENGTH,
         verbose_name='Пароль'
     )
-    is_subcribed = models.BooleanField(
+    is_subscribed = models.BooleanField(
         default=False,
     )
 

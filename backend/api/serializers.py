@@ -1,12 +1,108 @@
 import base64
 
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 
-from .models import (
+from users.models import User, Subscribe
+from users.constants import USERNAME_LENGTH
+from recipes.models import (
     Tag, Ingredient, Recipe, IngredientsInRecipes, Favorites, ShoppingList
 )
-from users.serializers import UserSerializer
+
+
+class UserSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(
+        required=True,
+        max_length=USERNAME_LENGTH,
+        validators=[UnicodeUsernameValidator(),]
+    )
+    is_subscribed = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = User
+        fields = (
+            'username', 'email', 'first_name',
+            'last_name', 'role', 'is_subscribed',
+            'password',
+        )
+
+    def validate(self, data):
+        user_by_username = User.objects.filter(
+            username=data['username']
+        ).first()
+        user_by_email = User.objects.filter(email=data['email']).first()
+
+        if user_by_username or user_by_email:
+            errors = {}
+            if user_by_username:
+                errors['username'] = 'Это имя пользователя уже используется'
+            if user_by_email:
+                errors['email'] = 'Данная почта уже зарегистрирована'
+            raise serializers.ValidationError(errors)
+        return data
+
+    def create(self, validated_data):
+        user = User(**validated_data)
+        user.set_password(validated_data['password'])
+        user.save()
+        return user
+
+    def get_is_subscribed(self, obj):
+        user = self.context.get('request').user
+        if user.is_anonymous:
+            return False
+        return Subscribe.objects.filter(user=user, following_user=obj).exists()
+
+
+class SubscribeSerializer(serializers.ModelSerializer):
+    user = serializers.SlugRelatedField(
+        slug_field='username',
+        read_only=True,
+        default=serializers.CurrentUserDefault()
+    )
+    following_user = serializers.SlugRelatedField(
+        slug_field='username',
+        queryset=User.objects.all(),
+        default=serializers.CurrentUserDefault()
+    )
+
+    class Meta:
+        model = Subscribe
+        fields = ('user', 'following_user',)
+
+    def to_representation(self, instance):
+        request = self.context.get('request')
+        context = {'request': request}
+        return UserSubscribeSerializer(
+            instance.following_user, context=context
+        ).data
+
+
+class UserSubscribeSerializer(serializers.ModelSerializer):
+    is_subscribed = serializers.SerializerMethodField()
+    recipes = serializers.SerializerMethodField()
+    recipes_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = (
+            'id', 'username', 'first_name',
+            'last_name', 'email', 'is_subscribed',
+            'recipes', 'recipes_count',
+        )
+
+    def get_recipes(self, obj):
+        request = self.context.get('request')
+        limit = request.GET.get('recipes_limit')
+        recipes = Recipe.objects.filter(author=obj)
+        if limit:
+            recipes = recipes[:int(limit)]
+        serializer = RecipeSerializer(recipes, many=True)
+        return serializer.data
+
+    def get_recipes_count(self, obj):
+        return Recipe.objects.filter(author=obj).count()
 
 
 class TagSerializer(serializers.ModelSerializer):
