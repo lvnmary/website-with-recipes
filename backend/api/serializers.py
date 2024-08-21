@@ -22,9 +22,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
-            'username', 'email', 'first_name',
-            'last_name', 'role', 'is_subscribed',
-            'password',
+            'id', 'email', 'username', 'first_name',
+            'last_name', 'is_subscribed', 'avatar',
         )
 
     def validate(self, data):
@@ -53,6 +52,9 @@ class UserSerializer(serializers.ModelSerializer):
         if user.is_anonymous:
             return False
         return Subscribe.objects.filter(user=user, following_user=obj).exists()
+
+    def get_avatar(self, obj):
+        return obj.avatar.url if obj.avatar else ''
 
 
 class SubscribeSerializer(serializers.ModelSerializer):

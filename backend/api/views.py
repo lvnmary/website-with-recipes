@@ -1,5 +1,9 @@
+import base64
+
 from datetime import date
 
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.db.models import Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -26,8 +30,8 @@ from .serializers import (
 class UserViewset(UserViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = (IsAdminOrReadOnly,)
-    search_fields = ('username',)
+    permission_classes = (IsAuthorOrAdminOrReadOnly,)
+    search_fields = ('username', 'email',)
     pagination_class = LimitOffsetPagination
 
     @action(
@@ -96,6 +100,60 @@ class UserViewset(UserViewSet):
             paginated_queryset, many=True, context={'request': request}
         )
         return self.get_paginated_response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=['put', 'delete'],
+        permission_classes=[permissions.IsAuthenticated],
+        url_path='me/avatar'
+    )
+    def avatar(self, request, *args, **kwargs):
+        user = request.user
+
+        if request.method in ['PUT', 'PATCH']:
+            return self.handle_avatar_upload(request, user)
+
+        if request.method == 'DELETE':
+            return self.handle_avatar_deletion(user)
+
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def handle_avatar_upload(self, request, user):
+        avatar_base64 = request.data.get('avatar')
+        if not avatar_base64:
+            return Response(
+                {'error': 'Аватар не загружен'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            format, imgstr = avatar_base64.split(';base64,')
+            ext = format.split('/')[-1]
+            data = base64.b64decode(imgstr)
+
+            file_name = f"{user.id}_avatar.{ext}"
+            file = ContentFile(data, file_name)
+
+            user.avatar = file
+            user.save()
+            return Response(
+                {'avatar': user.avatar.url},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {'error': 'Некорректные данные base64', 'detail': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def handle_avatar_deletion(self, user):
+        if user.avatar:
+            if default_storage.exists(user.avatar.name):
+                default_storage.delete(user.avatar.name)
+            user.avatar = ''
+            user.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TagViewset(viewsets.ModelViewSet):
