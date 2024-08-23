@@ -258,3 +258,4 @@ class FullRecipeSerializer(serializers.ModelSerializer):
         if user.is_anonymous:
             return False
         return ShoppingList.objects.filter(user=user, recipe=obj).exists()
+
