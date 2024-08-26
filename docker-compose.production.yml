@@ -35,7 +35,7 @@ services:
     image: lvnmary/foodgram_gateway
     env_file: .env
     ports:
-      - 8090:80
+      - 8000:80
     volumes:
       - static_volume:/static/
       - media:/media/
