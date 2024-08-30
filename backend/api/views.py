@@ -24,7 +24,8 @@ from .permissions import IsAdminOrReadOnly, IsAuthorOrAdminOrReadOnly
 from .serializers import (
     UserSerializer, SubscribeSerializer, UserSubscribeSerializer,
     TagSerializer, IngredientSerializer, RecipeSerializer,
-    RecipeDetailedSerializer, FullRecipeSerializer
+    RecipeDetailedSerializer, FullRecipeSerializer,
+    FavoriteSerializer, ShoppingListSerializer,
 )
 
 
@@ -218,14 +219,11 @@ class RecipeViewset(viewsets.ModelViewSet):
     ordering = ('pub_date',)
 
     def get_serializer_class(self):
-        if self.action in ('retrieve', 'list'):
-            return FullRecipeSerializer
-        return RecipeDetailedSerializer
+        if self.action in ('create', 'partial_update'):
+            return RecipeDetailedSerializer
+        return FullRecipeSerializer
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
-
-    def perform_update(self, serializer):
         serializer.save(author=self.request.user)
 
     @action(
@@ -308,3 +306,65 @@ class RecipeViewset(viewsets.ModelViewSet):
         response = HttpResponse(shopping_list, content_type='text/plain')
         response['Content-Disposition'] = f'attachment; filename={filename}'
         return response
+
+
+class FavoriteViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Favorites.objects.all()
+
+    @action(detail=False, methods=('post',))
+    def add_to_favorites(self, request, id):
+        serializer = FavoriteSerializer(
+            data={},
+            context={'request': request, 'view': self}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=('delete',))
+    def remove_from_favorites(self, request, id):
+        user = request.user
+        recipe = get_object_or_404(Recipe, id=id)
+        try:
+            favorite = user.favorites.get(recipe=recipe)
+            favorite.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Favorites.DoesNotExist:
+            return Response(
+                {'detail': 'Favorite not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class ShopViewSet(viewsets.ModelViewSet):
+    permission_classes = (permissions.IsAuthenticated,)
+    queryset = ShoppingList.objects.all()
+
+    @action(detail=False, methods=('post',))
+    def add_to_shop_list(self, request, id):
+        serializer = ShoppingListSerializer(
+            data={},
+            context={'request': request, 'view': self}
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    @action(detail=False, methods=('delete',))
+    def remove_from_shop_list(self, request, id):
+        user = request.user
+        recipe = get_object_or_404(Recipe, id=id)
+        try:
+            shop = user.shop_user.get(recipe=recipe)
+            shop.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except ShoppingList.DoesNotExist:
+            return Response(
+                {'detail': 'Recipe not in shop list.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
