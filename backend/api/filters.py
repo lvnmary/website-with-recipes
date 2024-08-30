@@ -51,7 +51,7 @@ class RecipeFilter(filters.FilterSet):
             return queryset.filter(shopping_cart__user=self.request.user)
         return queryset
 
-    def filter_queryset(self, queryset):
+    def filter_queryset(self, queryset, request=None):
         queryset = super().filter_queryset(queryset)
 
         tags = self.data.get('tags')
