@@ -2,6 +2,7 @@ import base64
 
 from datetime import date
 
+from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db.models import Sum
@@ -27,6 +28,8 @@ from .serializers import (
     RecipeDetailedSerializer, FullRecipeSerializer,
     FavoriteSerializer, ShoppingListSerializer,
 )
+
+User = get_user_model()
 
 
 class UserViewset(UserViewSet):
