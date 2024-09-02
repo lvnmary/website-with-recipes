@@ -23,7 +23,7 @@ from .filters import IngredientFilter, RecipeFilter
 from .permissions import IsAdminOrReadOnly, IsAuthorOrAdminOrReadOnly
 from .serializers import (
     UserSerializer, SubscribeSerializer, UserSubscribeSerializer,
-    TagSerializer, IngredientSerializer, RecipeSerializer,
+    TagSerializer, IngredientSerializer,
     RecipeDetailedSerializer, FullRecipeSerializer,
     FavoriteSerializer, ShoppingListSerializer,
 )
