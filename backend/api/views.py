@@ -6,7 +6,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db.models import Sum
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -323,7 +323,7 @@ class FavoriteViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=('delete',))
-    def remove_from_favorites(self, request, id):
+    def delete_from_favorites(self, request, id):
         user = request.user
         recipe = get_object_or_404(Recipe, id=id)
         try:
@@ -332,17 +332,17 @@ class FavoriteViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Favorites.DoesNotExist:
             return Response(
-                {'detail': 'Favorite not found.'},
+                {'detail': 'Рецепт не найден в списке избранного'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
 
-class ShopViewSet(viewsets.ModelViewSet):
+class ShoppingListViewSet(viewsets.ModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
     queryset = ShoppingList.objects.all()
 
     @action(detail=False, methods=('post',))
-    def add_to_shop_list(self, request, id):
+    def add_to_shopping_list(self, request, id):
         serializer = ShoppingListSerializer(
             data={},
             context={'request': request, 'view': self}
@@ -356,7 +356,7 @@ class ShopViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=False, methods=('delete',))
-    def remove_from_shop_list(self, request, id):
+    def delete_from_shopping_list(self, request, id):
         user = request.user
         recipe = get_object_or_404(Recipe, id=id)
         try:
@@ -365,6 +365,12 @@ class ShopViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         except ShoppingList.DoesNotExist:
             return Response(
-                {'detail': 'Recipe not in shop list.'},
+                {'detail': 'Рецепт не добавлен в список покупок'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+
+def short_link_for_recipe(request, short_link):
+    base_url = request.get_host()
+    get_recipe = get_object_or_404(Recipe.objects, short_link=short_link)
+    return redirect(f'http://{base_url}/recipes/{get_recipe.pk}')

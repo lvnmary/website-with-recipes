@@ -291,7 +291,7 @@ class ShoppingListSerializer(serializers.ModelSerializer):
 
         if user.shop_user.filter(recipe__id=recipe_id).exists():
             raise serializers.ValidationError(
-                'Рецепт уже есть в списке покупок'
+                'Р РµС†РµРїС‚ СѓР¶Рµ РґРѕР±Р°РІР»РµРЅ РІ СЃРїРёСЃРѕРє РїРѕРєСѓРїРѕРє'
             )
         return data
 
@@ -302,7 +302,6 @@ class ShoppingListSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         return FullRecipeSerializer(instance.recipe).data
-
 
 
 class FavoriteSerializer(serializers.ModelSerializer):
@@ -319,7 +318,7 @@ class FavoriteSerializer(serializers.ModelSerializer):
 
         if user.favorites.filter(recipe__id=recipe_id).exists():
             raise serializers.ValidationError(
-                'Рецепт уже добавлен в избранное'
+                'Р РµС†РµРїС‚ СѓР¶Рµ РґРѕР±Р°РІР»РµРЅ РІ РёР·Р±СЂР°РЅРЅРѕРµ'
             )
         return data
 
