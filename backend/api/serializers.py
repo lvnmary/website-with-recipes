@@ -157,6 +157,10 @@ class Base64ImageField(serializers.ImageField):
 
 
 class RecipeSerializer(serializers.ModelSerializer):
+    image = Base64ImageField()
+    name = serializers.CharField()
+    cooking_time = serializers.IntegerField()
+    id = serializers.IntegerField()
 
     class Meta:
         model = Recipe
@@ -267,7 +271,7 @@ class FullRecipeSerializer(serializers.ModelSerializer):
             return False
         return obj.favorited_by.filter(user=request.user).exists()
 
-    def get_is_in_shopping_cart(self, obj):
+    def get_is_in_shopping_list(self, obj):
         request = self.context.get('request')
         if request is None or not request.user.is_authenticated:
             return False

@@ -2,7 +2,7 @@ import base64
 
 from datetime import date
 
-from django.contrib.auth import get_user_model
+# from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db.models import Sum
@@ -25,11 +25,10 @@ from .permissions import IsAdminOrReadOnly, IsAuthorOrAdminOrReadOnly
 from .serializers import (
     UserSerializer, SubscribeSerializer, UserSubscribeSerializer,
     TagSerializer, IngredientSerializer, RecipeSerializer,
-    RecipeDetailedSerializer, FullRecipeSerializer,
-    FavoriteSerializer, ShoppingListSerializer,
+    RecipeDetailedSerializer, FullRecipeSerializer
 )
 
-User = get_user_model()
+# User = get_user_model()
 
 
 class UserViewset(UserViewSet):
@@ -310,67 +309,12 @@ class RecipeViewset(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename={filename}'
         return response
 
-
-class FavoriteViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    queryset = Favorites.objects.all()
-
-    @action(detail=False, methods=('post',))
-    def add_to_favorites(self, request, id):
-        serializer = FavoriteSerializer(
-            data={},
-            context={'request': request, 'view': self}
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=False, methods=('delete',))
-    def delete_from_favorites(self, request, id):
-        user = request.user
-        recipe = get_object_or_404(Recipe, id=id)
-        try:
-            favorite = user.favorites.get(recipe=recipe)
-            favorite.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Favorites.DoesNotExist:
-            return Response(
-                {'detail': 'Рецепт не найден в списке избранного'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-
-class ShoppingListViewSet(viewsets.ModelViewSet):
-    permission_classes = (permissions.IsAuthenticated,)
-    queryset = ShoppingList.objects.all()
-
-    @action(detail=False, methods=('post',))
-    def add_to_shopping_list(self, request, id):
-        serializer = ShoppingListSerializer(
-            data={},
-            context={'request': request, 'view': self}
-        )
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    @action(detail=False, methods=('delete',))
-    def delete_from_shopping_list(self, request, id):
-        user = request.user
-        recipe = get_object_or_404(Recipe, id=id)
-        try:
-            shop = user.shop_user.get(recipe=recipe)
-            shop.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except ShoppingList.DoesNotExist:
-            return Response(
-                {'detail': 'Рецепт не добавлен в список покупок'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+    @action(methods=['get'], detail=True, url_path='get-link')
+    def get_link(self, request, pk=None):
+        get_recipe = self.get_object()
+        base_url = request.get_host()
+        short_link = f'https://{base_url}/s/{get_recipe.short_link}'
+        return Response({'short-link': short_link})
 
 
 def short_link_for_recipe(request, short_link):
