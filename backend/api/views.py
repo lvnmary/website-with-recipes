@@ -2,7 +2,6 @@ import base64
 
 from datetime import date
 
-# from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db.models import Sum
@@ -27,8 +26,6 @@ from .serializers import (
     TagSerializer, IngredientSerializer, RecipeSerializer,
     RecipeDetailedSerializer, FullRecipeSerializer
 )
-
-# User = get_user_model()
 
 
 class UserViewset(UserViewSet):
@@ -226,6 +223,9 @@ class RecipeViewset(viewsets.ModelViewSet):
         return FullRecipeSerializer
 
     def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+    def perform_update(self, serializer):
         serializer.save(author=self.request.user)
 
     @action(
