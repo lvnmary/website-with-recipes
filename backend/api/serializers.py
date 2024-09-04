@@ -121,6 +121,15 @@ class IngredientSerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'measurement_unit')
 
 
+class IngredientInRecipeSerializer(serializers.ModelSerializer):
+    ingredient = IngredientSerializer(read_only=True)
+    amount = serializers.IntegerField(required=True)
+
+    class Meta:
+        model = IngredientsInRecipes
+        fields = ('ingredient', 'amount')
+
+
 class Base64ImageField(serializers.ImageField):
     def to_internal_value(self, data):
         if isinstance(data, str) and data.startswith('data:image'):
@@ -237,15 +246,15 @@ class FullRecipeSerializer(serializers.ModelSerializer):
         )
 
     def get_ingredients(self, obj):
-        ingredients = IngredientsInRecipes.objects.filter(recipe=obj)
-        return [
-            {
-                'id': ingredient.ingredient.id,
-                'name': ingredient.ingredient.name,
-                'amount': ingredient.amount
-            }
-            for ingredient in ingredients
-        ]
+        ingredients = IngredientInRecipeSerializer(
+            obj.recipes_ingredients.all(), many=True,
+        ).data
+        for ingredient in ingredients:
+            if ingredient['amount'] <= 1:
+                raise serializers.ValidationError(
+                    'Минимальное колличество ингредиента - 1'
+                )
+        return ingredients
 
     def get_is_favorited(self, obj):
         user = self.context.get('request').user

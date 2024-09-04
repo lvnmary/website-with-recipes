@@ -106,7 +106,7 @@ class UserViewset(UserViewSet):
         permission_classes=[permissions.IsAuthenticated],
     )
     def subscriptions(self, request):
-        sub_authors = User.objects.filter(sub_author__user=request.user)
+        sub_authors = User.objects.filter(follower__user=request.user)
         paginated_queryset = self.paginate_queryset(sub_authors)
         serializer = UserSubscribeSerializer(
             paginated_queryset, many=True, context={'request': request}
@@ -287,7 +287,7 @@ class RecipeViewset(viewsets.ModelViewSet):
     def download_shopping_cart(self, request):
         user = request.user
         ingredients = IngredientsInRecipes.objects.filter(
-            recipe__shopping_cart__user=user
+            recipe__shopping_list__user=user
         ).values(
             'ingredient__name', 'ingredient__measurement_unit'
         ).order_by(
