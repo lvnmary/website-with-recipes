@@ -1,11 +1,13 @@
 import base64
+import csv
+import io
 
-from datetime import date
+# from datetime import date
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db.models import Sum
-from django.http import HttpResponse
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions, status, viewsets
@@ -23,8 +25,8 @@ from .filters import IngredientFilter, RecipeFilter
 from .permissions import IsAdminOrReadOnly, IsAuthorOrAdminOrReadOnly
 from .serializers import (
     UserSerializer, SubscribeSerializer, UserSubscribeSerializer,
-    TagSerializer, IngredientSerializer, RecipeSerializer,
-    RecipeDetailedSerializer, FullRecipeSerializer
+    TagSerializer, IngredientSerializer, ShoppingListSerializer,
+    RecipeDetailedSerializer, FullRecipeSerializer, FavoriteSerializer,
 )
 
 
@@ -211,103 +213,70 @@ class IngredientViewset(viewsets.ModelViewSet):
 
 
 class RecipeViewset(viewsets.ModelViewSet):
-    queryset = Recipe.objects.all()
+    queryset = Recipe.objects.select_related(
+        'author').prefetch_related('ingredients', 'tags')
+    serializer_class = RecipeDetailedSerializer
     permission_classes = [IsAuthorOrAdminOrReadOnly]
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilter
     ordering = ('pub_date',)
+    http_method_names = ['get', 'post', 'patch', 'delete']
+    pk_url_kwarg = 'pk'
 
     def get_serializer_class(self):
-        if self.action in ('create', 'partial_update'):
+        if self.action in ['shopping_list', 'download_shopping_list']:
+            return ShoppingListSerializer
+        if self.action == 'favorite':
+            return FavoriteSerializer
+        if self.request.method == 'GET':
+            return FullRecipeSerializer
+        if self.request.method == 'PATCH':
             return RecipeDetailedSerializer
-        return FullRecipeSerializer
+        return super().get_serializer_class()
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
-    def perform_update(self, serializer):
-        serializer.save(author=self.request.user)
+    def recipe_post(self):
+        request_user = self.request.user
+        get_recipe = get_object_or_404(Recipe, pk=self.kwargs[self.pk_url_kwarg])
+        serializer = self.get_serializer(data=self.request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request_user, recipe=get_recipe)
+        get_headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=get_headers)
 
-    @action(
-        detail=True, methods=['POST', 'DELETE'],
-        permission_classes=[permissions.IsAuthenticated],
-    )
-    def favorite(self, request, pk=None):
-        user = request.user
-        recipe = get_object_or_404(Recipe, pk=pk)
-        instance = Favorites.objects.filter(user=user, recipe=recipe)
-        if request.method == 'POST':
-            if instance.exists():
-                return Response({'errors': 'Рецепт уже есть в избранном'},
-                                status=status.HTTP_400_BAD_REQUEST)
-            Favorites.objects.create(user=user, recipe=recipe)
-            serializer = RecipeSerializer(recipe)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        if not instance.exists():
-            return Response(
-                {'errors': 'Рецепт не добавлен в избранное или был удален'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        instance.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @action(
-        detail=True, methods=['POST', 'DELETE'],
-        permission_classes=[permissions.IsAuthenticated],
-    )
-    def shopping_cart(self, request, pk=None):
-        user = request.user
-        recipe = get_object_or_404(Recipe, pk=pk)
-        instance = ShoppingList.objects.filter(user=user, recipe=recipe)
-        if request.method == 'POST':
-            if instance.exists():
-                return Response({'errors': 'Рецепт уже есть в списке покупок'},
-                                status=status.HTTP_400_BAD_REQUEST)
-            ShoppingList.objects.create(user=user, recipe=recipe)
-            serializer = RecipeSerializer(recipe)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        if request.method == 'DELETE':
-            if not instance.exists():
-                return Response(
-                    {'errors': 'Рецепт не добавлен в список покупок'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            instance.delete()
+    def recipe_delete(self, manager):
+        request_user = self.request.user
+        get_recipe = get_object_or_404(Recipe, pk=self.kwargs[self.pk_url_kwarg])
+        recipe = manager.filter(user=request_user, recipe=get_recipe)
+        if recipe.exists():
+            recipe.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({'errors': 'Неизвестный запрос'},
-                        status=status.HTTP_400_BAD_REQUEST)
+    @action(methods=['post'], detail=True)
+    def shopping_list(self, request, pk=None):
+        return self.recipe_post()
 
-    @action(
-        detail=False, methods=['GET'],
-        permission_classes=[permissions.IsAuthenticated],
-    )
-    def download_shopping_cart(self, request):
-        user = request.user
-        ingredients = IngredientsInRecipes.objects.filter(
-            recipe__shopping_list__user=user
-        ).values(
-            'ingredient__name', 'ingredient__measurement_unit'
-        ).order_by(
-            'ingredient__name'
-        ).annotate(
-            ingredient_amount=Sum('amount')
-        )
+    @shopping_list.mapping.delete
+    def delete_shopping_list(self, request, pk=None):
+        return self.recipe_delete(ShoppingList.objects)
 
-        today = date.today()
-        shopping_list = [f'{today}\nСписок покупок:\n']
-        for ingredient in ingredients:
-            name = ingredient['ingredient__name']
-            unit = ingredient['ingredient__measurement_unit']
-            amount = ingredient['ingredient_amount']
-            shopping_list.append(f'\n{name} ({unit}) - {amount}')
-
-        filename = 'shopping_list.txt'
-        response = HttpResponse(shopping_list, content_type='text/plain')
-        response['Content-Disposition'] = f'attachment; filename={filename}'
+    @action(methods=['get'], detail=False)
+    def download_shopping_list(self, request, pk=None):
+        shop_list = self.get_shop_list(self.request.user)
+        response = FileResponse(shop_list, content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="shopping_cart.csv"'
         return response
+
+    @action(methods=['post'], detail=True)
+    def favorite(self, request, pk=None):
+        return self.recipe_post()
+
+    @favorite.mapping.delete
+    def delete_favorite(self, request, pk=None):
+        return self.recipe_delete(Favorites.objects)
 
     @action(methods=['get'], detail=True, url_path='get-link')
     def get_link(self, request, pk=None):
@@ -315,6 +284,24 @@ class RecipeViewset(viewsets.ModelViewSet):
         base_url = request.get_host()
         short_link = f'https://{base_url}/s/{get_recipe.short_link}'
         return Response({'short-link': short_link})
+
+    def get_shop_list(self, user):
+        count_ingredients = {}
+        shop_list = io.StringIO()
+        writer = csv.writer(shop_list)
+        writer.writerow(['Ингредиент', 'Количество'])
+        user_shopping_list = user.shopping_users.all()
+        ingredient_ids = user_shopping_list.values_list('recipe', flat=True)
+        ingredients = IngredientsInRecipes.objects.filter(
+            recipe__in=ingredient_ids
+        ).values('ingredient__name').annotate(total_amount=Sum('amount'))
+
+        for item in ingredients:
+            count_ingredients[item['ingredient__name']] = item['total_amount']
+        for key, value in count_ingredients.items():
+            writer.writerow([key, value])
+        shop_list.seek(0)
+        return shop_list
 
 
 def short_link_for_recipe(request, short_link):
