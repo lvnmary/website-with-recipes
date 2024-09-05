@@ -23,15 +23,10 @@ class IngredientAdmin(admin.ModelAdmin):
 
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'author', 'id', 'favorites_count')
+    list_display = ('name', 'author', 'id',)
     list_filter = ('name', 'author', 'tags',)
     search_fields = ('name',)
-    readonly_fields = ('favorites_count',)
     empty_value_display = '-пусто-'
-
-    @display
-    def favorites_count(self, obj):
-        return obj.favorites.count()
 
 
 @admin.register(IngredientsInRecipes)
