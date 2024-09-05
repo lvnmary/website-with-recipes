@@ -219,7 +219,7 @@ class FullRecipeSerializer(serializers.ModelSerializer):
         return ShoppingList.objects.filter(user=user, recipe=obj).exists()
 
 
-class RecipeDetailedSerializer(serializers.FullRecipeSerializer):
+class RecipeDetailedSerializer(FullRecipeSerializer):
     tags = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(),
         many=True
