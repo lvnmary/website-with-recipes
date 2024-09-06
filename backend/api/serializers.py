@@ -1,7 +1,7 @@
 # import base64
 
 from django.contrib.auth.validators import UnicodeUsernameValidator
-# from django.core.files.base import ContentFile
+from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from drf_extra_fields.fields import Base64ImageField
@@ -60,23 +60,23 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.avatar.url if obj.avatar else ''
 
 
-# class AvatarUploadSerializer(serializers.ModelSerializer):
-#     avatar = Base64ImageField()
+class AvatarUploadSerializer(serializers.ModelSerializer):
+    avatar = Base64ImageField()
 
-#     def update(self, instance, validated_data):
-#         avatar_data = validated_data.get('avatar')
-#         if avatar_data:
-#             instance.avatar.save('uploaded_avatar.png', ContentFile(avatar_data.read()), save=True)
-#         return instance
+    def update(self, instance, validated_data):
+        avatar_data = validated_data.get('avatar')
+        if avatar_data:
+            instance.avatar.save('uploaded_avatar.png', ContentFile(avatar_data.read()), save=True)
+        return instance
 
-#     def validate(self, data):
-#         if not data.get('avatar'):
-#             raise serializers.ValidationError('Изображение не было загружено')
-#         return data
+    def validate(self, data):
+        if not data.get('avatar'):
+            raise serializers.ValidationError('Изображение не было загружено')
+        return data
 
-#     class Meta:
-#         model = User
-#         fields = ('avatar',)
+    class Meta:
+        model = User
+        fields = ('avatar',)
 
 
 class SubscribeSerializer(serializers.ModelSerializer):

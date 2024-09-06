@@ -223,7 +223,7 @@ class RecipeViewset(viewsets.ModelViewSet):
     pk_url_kwarg = 'pk'
 
     def get_serializer_class(self):
-        if self.action in ['shopping_list', 'download_shopping_list']:
+        if self.action in ['shopping_cart', 'download_shopping_cart']:
             return ShoppingListSerializer
         if self.action == 'favorite':
             return FavoriteSerializer
@@ -255,15 +255,15 @@ class RecipeViewset(viewsets.ModelViewSet):
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=['post'], detail=True)
-    def shopping_list(self, request, pk=None):
+    def shopping_cart(self, request, pk=None):
         return self.recipe_post()
 
-    @shopping_list.mapping.delete
-    def delete_shopping_list(self, request, pk=None):
+    @shopping_cart.mapping.delete
+    def delete_shopping_cart(self, request, pk=None):
         return self.recipe_delete(ShoppingList.objects)
 
     @action(methods=['get'], detail=False)
-    def download_shopping_list(self, request, pk=None):
+    def download_shopping_cart(self, request, pk=None):
         shop_list = self.get_shop_list(self.request.user)
         response = FileResponse(shop_list, content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="shopping_cart.csv"'
