@@ -51,13 +51,10 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
     def get_is_subscribed(self, obj):
-        user = self.context.get('request').user
-        if user.is_anonymous:
-            return False
-        return Subscribe.objects.filter(user=user, following_user=obj).exists()
+        return getattr(obj, 'is_subscribed', False)
 
-    def get_avatar(self, obj):
-        return obj.avatar.url if obj.avatar else ''
+    # def get_avatar(self, obj):
+    #     return obj.avatar.url if obj.avatar else ''
 
 
 class AvatarUploadSerializer(serializers.ModelSerializer):
@@ -117,7 +114,7 @@ class UserSubscribeSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'username', 'first_name',
             'last_name', 'email', 'is_subscribed',
-            'recipes', 'recipes_count',
+            'recipes', 'recipes_count', 'avatar',
         )
 
     def get_is_subscribed(self, obj):
@@ -288,8 +285,8 @@ class ShoppingListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ShoppingList
-        fields = ('recipe',)
-        read_only_fields = ('user', 'recipe')
+        fields = ('recipes',)
+        read_only_fields = ('user', 'recipes')
 
     def to_representation(self, instance):
         return RecipeSerializer(instance.recipes, context=self.context).data
