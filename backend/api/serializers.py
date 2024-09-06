@@ -200,7 +200,7 @@ class FullRecipeSerializer(serializers.ModelSerializer):
             obj.recipes_ingredients.all(), many=True,
         ).data
         for ingredient in ingredients:
-            if ingredient['amount'] <= 1:
+            if ingredient['amount'] < 1:
                 raise serializers.ValidationError(
                     'Минимальное колличество ингредиента - 1'
                 )
@@ -225,18 +225,10 @@ class RecipeDetailedSerializer(FullRecipeSerializer):
         many=True
     )
     author = UserSerializer(read_only=True)
-    ingredients = serializers.ListField(child=serializers.DictField())
     image = Base64ImageField(required=True)
-    is_favorited = serializers.BooleanField(default=False)
-    is_in_shopping_list = serializers.BooleanField(default=False)
+    is_favorited = serializers.SerializerMethodField()
+    is_in_shopping_list = serializers.SerializerMethodField()
     cooking_time = serializers.IntegerField(required=True)
-
-    class Meta:
-        model = Recipe
-        fields = (
-            'id', 'tags', 'author', 'ingredients',
-            'name', 'image', 'text', 'cooking_time',
-        )
 
     def validate_tags(self, tags):
         if not tags:
@@ -268,40 +260,27 @@ class RecipeDetailedSerializer(FullRecipeSerializer):
         return ingredients
 
     def create_ingredients(self, ingredients, recipe):
+        ingredients_data = [{'ingredient': ingredient_data['ingredient'],
+                             'amount': ingredient_data['amount']}
+                            for ingredient_data in ingredients
+                            ]
         IngredientsInRecipes.objects.bulk_create(
-            [IngredientsInRecipes(recipe=recipe, ingredient=ingredient['ingredient'],
-                                  amount=ingredient['amount'])
-             for ingredient in ingredients],
+            [IngredientsInRecipes(recipe=recipe, **ingredient_data)
+             for ingredient_data in ingredients_data],
         )
 
     @transaction.atomic
     def create(self, validated_data):
-        tags = validated_data.pop('tags')
-        ingredients = validated_data.pop('ingredients')
-        validated_data.pop('is_favorited', None)
-        validated_data.pop('is_in_shopping_list', None)
+        validated_data.pop('is_favorited')
+        validated_data.pop('is_in_shopping_list')
         recipe = Recipe.objects.create(**validated_data)
-        recipe.tags.set(tags)
-        self.create_ingredients(ingredients, recipe)
         return recipe
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        validated_data.pop('is_favorited', None)
-        validated_data.pop('is_in_shopping_list', None)
         instance.ingredients.clear()
-        tags = validated_data.pop('tags', None)
-        if tags is not None:
-            instance.tags.set(tags)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        ingredients = validated_data.pop('ingredients', None)
-        if ingredients is not None:
-            instance.ingredients_recipes.all().delete()
-            self.create_ingredients(ingredients, instance)
-
-        instance.save()
-        return instance
+        validated_data['is_favorited'] = self.get_is_favorited(instance)
+        return super().update(instance, validated_data)
 
 
 class ShoppingListSerializer(serializers.ModelSerializer):
