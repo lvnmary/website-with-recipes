@@ -8,8 +8,7 @@ User = get_user_model()
 
 class IngredientFilter(filters.FilterSet):
     name = django_filters.CharFilter(
-        field_name='name',
-        lookup_expr='icontains',
+        lookup_expr='istartswith',
     )
 
     class Meta:
@@ -49,16 +48,4 @@ class RecipeFilter(filters.FilterSet):
     def filter_is_in_shopping_cart(self, queryset, name, value):
         if value:
             return queryset.filter(shopping_list__user=self.request.user)
-        return queryset
-
-    def filter_queryset(self, queryset, request=None):
-        queryset = super().filter_queryset(queryset)
-
-        tags = self.data.get('tags')
-        if tags == "__all__":
-            return queryset
-
-        if not tags and not self.data.get('author'):
-            return Recipe.objects.none()
-
         return queryset
