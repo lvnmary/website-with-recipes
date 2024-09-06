@@ -53,17 +53,14 @@ class UserSerializer(serializers.ModelSerializer):
     def get_is_subscribed(self, obj):
         return getattr(obj, 'is_subscribed', False)
 
-    # def get_avatar(self, obj):
-    #     return obj.avatar.url if obj.avatar else ''
-
 
 class AvatarUploadSerializer(serializers.ModelSerializer):
-    avatar = Base64ImageField()
+    avatar = Base64ImageField(required=True)
 
     def update(self, instance, validated_data):
-        avatar_data = validated_data.get('avatar')
-        if avatar_data:
-            instance.avatar.save('uploaded_avatar.png', ContentFile(avatar_data.read()), save=True)
+        avatar_data = validated_data.get('avatar', None)
+        file_avatar = ContentFile(avatar_data.read())
+        instance.avatar.save('image.png', file_avatar, save=True)
         return instance
 
     def validate(self, data):
