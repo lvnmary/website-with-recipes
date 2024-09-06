@@ -22,7 +22,7 @@ from recipes.models import (
 )
 from users.models import User, Subscribe
 from .filters import IngredientFilter, RecipeFilter
-from .permissions import IsAdminOrReadOnly, IsAuthorOrAdminOrReadOnly
+from .permissions import IsAuthorOrAdminOrReadOnly
 from .serializers import (
     UserSerializer, SubscribeSerializer, UserSubscribeSerializer,
     TagSerializer, IngredientSerializer, ShoppingListSerializer,
