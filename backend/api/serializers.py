@@ -189,13 +189,13 @@ class FullRecipeSerializer(serializers.ModelSerializer):
     ingredients = serializers.SerializerMethodField()
     image = Base64ImageField()
     is_favorited = serializers.SerializerMethodField()
-    is_in_shopping_list = serializers.SerializerMethodField()
+    is_in_shopping_cart = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
         fields = (
             'id', 'tags', 'author', 'ingredients',
-            'is_favorited', 'is_in_shopping_list',
+            'is_favorited', 'is_in_shopping_cart',
             'name', 'image', 'text', 'cooking_time'
         )
 
@@ -225,7 +225,7 @@ class FullRecipeSerializer(serializers.ModelSerializer):
             return False
         return Favorites.objects.filter(user=user, recipe=obj).exists()
 
-    def get_is_in_shopping_list(self, obj):
+    def get_is_in_shopping_cart(self, obj):
         user = self.context.get('request').user
         if user.is_anonymous:
             return False
@@ -241,7 +241,7 @@ class RecipeDetailedSerializer(FullRecipeSerializer):
     author = UserSerializer(read_only=True)
     image = Base64ImageField(required=True)
     is_favorited = serializers.SerializerMethodField()
-    is_in_shopping_list = serializers.SerializerMethodField()
+    is_in_shopping_cart = serializers.SerializerMethodField()
     cooking_time = serializers.IntegerField(required=True)
 
     def validate(self, data):
@@ -301,24 +301,20 @@ class RecipeDetailedSerializer(FullRecipeSerializer):
         tags_data = validated_data.pop('tags')
         ingredients_data = validated_data.pop('ingredients')
         recipe = Recipe.objects.create(**validated_data)
-        for ingredient_data in ingredients_data:
-            ingredient = ingredient_data['ingredient']
-            amount = ingredient_data['amount']
-            IngredientsInRecipes.objects.create(
-                recipe=recipe, ingredient=ingredient, amount=amount
-            )
+        self.create_ingredients(ingredients_data, recipe)
         recipe.tags.set(tags_data)
         return recipe
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        validated_data.pop('is_favorited', None)
+        validated_data.pop('is_in_shopping_cart', None)
+        tags_data = validated_data.pop('tags')
+        ingredients_data = validated_data.pop('ingredients')
+        instance.tags.set(tags_data)
         instance.ingredients.clear()
-        instance.tags.set(validated_data.pop('tags'))
-        self.create_ingredients(validated_data.pop('ingredients'),
-                                recipe=instance)
-        validated_data['is_favorited'] = self.get_is_favorited(instance)
+        self.create_ingredients(ingredients_data, instance)
         return super().update(instance, validated_data)
-
 
 class ShoppingListSerializer(serializers.ModelSerializer):
     recipes = FullRecipeSerializer()
