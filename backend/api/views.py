@@ -185,8 +185,7 @@ class IngredientsInRecipesViewset(viewsets.ModelViewSet):
 
 
 class RecipeViewset(viewsets.ModelViewSet):
-    queryset = Recipe.objects.select_related(
-        'author').prefetch_related('ingredients', 'tags')
+    queryset = Recipe.objects.prefetch_related('author', 'ingredients', 'tags')
     serializer_class = RecipeDetailedSerializer
     permission_classes = [IsAuthorOrAdminOrReadOnly]
     filter_backends = (DjangoFilterBackend,)
@@ -194,22 +193,6 @@ class RecipeViewset(viewsets.ModelViewSet):
     ordering = ('pub_date',)
     http_method_names = ['get', 'post', 'patch', 'delete']
     pk_url_kwarg = 'pk'
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated:
-            favorites = user.favorite_users.filter(
-                recipes=OuterRef('pk'))
-            shopping_cart = user.shoppinglist_users.filter(
-                recipes=OuterRef('pk'))
-            subscribers = user.subscription_author.filter(
-                subscriber=OuterRef('author'))
-            return super().get_queryset().annotate(
-                is_favorite=Exists(favorites),
-                is_in_shopping_cart=Exists(shopping_cart),
-                is_subscribed=Exists(subscribers)
-            )
-        return super().get_queryset()
 
     def get_serializer_class(self):
         if self.action in ['shopping_cart', 'download_shopping_cart']:
