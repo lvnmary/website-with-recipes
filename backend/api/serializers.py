@@ -145,7 +145,7 @@ class IngredientSerializer(serializers.ModelSerializer):
 
 
 class IngredientInRecipeSerializer(serializers.ModelSerializer):
-    # ingredient = IngredientSerializer(read_only=True)
+    ingredient = IngredientSerializer(read_only=True)
     amount = serializers.IntegerField(required=True)
 
     class Meta:
@@ -155,21 +155,12 @@ class IngredientInRecipeSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         new_representation = {
-            'id': instance.id,
+            'id': instance.ingredient.id,
             'name': instance.ingredient.name,
             'measurement_unit': instance.ingredient.measurement_unit,
             'amount': representation['amount']
         }
         return new_representation
-
-
-# class Base64ImageField(serializers.ImageField):
-#     def to_internal_value(self, data):
-#         if isinstance(data, str) and data.startswith('data:image'):
-#             format, imgstr = data.split(';base64,')
-#             ext = format.split('/')[-1]
-#             data = ContentFile(base64.b64decode(imgstr), name='temp.' + ext)
-#         return super().to_internal_value(data)
 
 
 class RecipeSerializer(serializers.ModelSerializer):
@@ -186,7 +177,11 @@ class RecipeSerializer(serializers.ModelSerializer):
 class FullRecipeSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     author = UserSerializer(read_only=True)
-    ingredients = serializers.SerializerMethodField()
+    ingredients = IngredientInRecipeSerializer(
+        source='recipes',
+        many=True,
+        read_only=True
+    )
     image = Base64ImageField()
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
