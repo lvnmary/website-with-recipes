@@ -145,12 +145,22 @@ class IngredientSerializer(serializers.ModelSerializer):
 
 
 class IngredientInRecipeSerializer(serializers.ModelSerializer):
-    ingredient = IngredientSerializer(read_only=True)
+    # ingredient = IngredientSerializer(read_only=True)
     amount = serializers.IntegerField(required=True)
 
     class Meta:
         model = IngredientsInRecipes
-        fields = ('ingredient', 'amount')
+        fields = ('ingredient', 'amount', 'recipe')
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        new_representation = {
+            'id': instance.id,
+            'name': instance.ingredient.name,
+            'measurement_unit': instance.ingredient.measurement_unit,
+            'amount': representation['amount']
+        }
+        return new_representation
 
 
 # class Base64ImageField(serializers.ImageField):
