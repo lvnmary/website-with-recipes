@@ -234,43 +234,54 @@ class RecipeDetailedSerializer(FullRecipeSerializer):
     is_in_shopping_list = serializers.SerializerMethodField()
     cooking_time = serializers.IntegerField(required=True)
 
-    def validate_tags(self, tags):
-        if not tags:
-            raise serializers.ValidationError('Выберите тег')
-        unique_tags = set()
-        for tag in tags:
-            if not Tag.objects.filter(id=tag).exists():
-                raise serializers.ValidationError(f'Тег {tag} не существует')
-            unique_tags.add(tag)
-        if len(tags) != len(unique_tags):
-            raise serializers.ValidationError('Теги должны быть уникальными')
-        return tags
-
-    def validate_ingredients(self, ingredients):
-        if not ingredients:
-            raise serializers.ValidationError('Выберите ингредиент')
-        seen_ingredients = set()
-        for ingredient_data in ingredients:
-            ingredient_id = ingredient_data.get('id')
-            if not Ingredient.objects.filter(id=ingredient_id).exists():
+    def validate(self, data):
+        data = super().validate(data)
+        request = self.context['request']
+        get_tags = request.data.get('tags')
+        tags_data = set()
+        if not get_tags:
+            raise serializers.ValidationError(
+                {'tags': ['Обязательное поле']})
+        for tag_data in get_tags:
+            try:
+                tag = Tag.objects.get(pk=tag_data)
+                if tag in tags_data:
+                    raise serializers.ValidationError(
+                        {'tags': ['Такой тег уже есть']})
+                tags_data.add(tag)
+            except Tag.DoesNotExist:
                 raise serializers.ValidationError(
-                    f'Ингредиент с id {ingredient_id} не существует'
-                )
-            if ingredient_id in seen_ingredients:
+                    {'Tag': ['Такого тега нет.']})
+        get_ingredients = request.data.get('ingredients')
+        if not get_ingredients:
+            raise serializers.ValidationError(
+                {'ingredients': ['Обязательное поле']})
+        ingredients_set = set()
+        ingredients_data = []
+        for ingredient in get_ingredients:
+            if ingredient['amount'] <= 0:
                 raise serializers.ValidationError(
-                    'Этот ингредиент уже добавлен'
-                )
-            seen_ingredients.add(ingredient_id)
-        return ingredients
+                    {'amount': ['Количество не меньше 1']})
+            if ingredient['id'] in ingredients_set:
+                raise serializers.ValidationError(
+                    {'ingredients': ['Такой id занят']})
+            ingredients_set.add(ingredient['id'])
+            try:
+                ingredients = Ingredient.objects.filter(id__in=ingredients_set)
+                ingredients_data.append(
+                    {'ingredient': ingredients.get(pk=ingredient['id']),
+                     'amount': ingredient['amount']})
+            except Ingredient.DoesNotExist:
+                raise serializers.ValidationError(
+                    {'ingredients': ['Такого ингредиента нет']})
+        data['ingredients'] = ingredients_data
+        data['tags'] = tags_data
+        return data
 
-    def create_ingredients(self, ingredients, recipe):
-        ingredients_data = [{'ingredient': ingredient_data['ingredient'],
-                             'amount': ingredient_data['amount']}
-                            for ingredient_data in ingredients
-                            ]
+    def create_ingredients(self, data, recipe):
         IngredientsInRecipes.objects.bulk_create(
             [IngredientsInRecipes(recipe=recipe, **ingredient_data)
-             for ingredient_data in ingredients_data],
+             for ingredient_data in data],
         )
 
     @transaction.atomic
