@@ -175,7 +175,7 @@ class IngredientInRecipeSerializer(serializers.ModelSerializer):
 class RecipeSerializer(serializers.ModelSerializer):
     name = serializers.CharField()
     image = Base64ImageField()
-    id = serializers.IntegerField()
+    # id = serializers.IntegerField()
     cooking_time = serializers.IntegerField()
 
     class Meta:
@@ -275,14 +275,26 @@ class RecipeDetailedSerializer(FullRecipeSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        validated_data.pop('is_favorited')
-        validated_data.pop('is_in_shopping_list')
+        validated_data.pop('is_favorited', None)
+        validated_data.pop('is_in_shopping_cart', None)
+        tags_data = validated_data.pop('tags')
+        ingredients_data = validated_data.pop('ingredients')
         recipe = Recipe.objects.create(**validated_data)
+        for ingredient_data in ingredients_data:
+            ingredient = ingredient_data['ingredient']
+            amount = ingredient_data['amount']
+            IngredientsInRecipes.objects.create(
+                recipe=recipe, ingredient=ingredient, amount=amount
+            )
+        recipe.tags.set(tags_data)
         return recipe
 
     @transaction.atomic
     def update(self, instance, validated_data):
         instance.ingredients.clear()
+        instance.tags.set(validated_data.pop('tags'))
+        self.create_ingredients(validated_data.pop('ingredients'),
+                                recipe=instance)
         validated_data['is_favorited'] = self.get_is_favorited(instance)
         return super().update(instance, validated_data)
 
