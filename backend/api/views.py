@@ -27,7 +27,7 @@ from .serializers import (
     UserSerializer, SubscribeSerializer, UserSubscribeSerializer,
     TagSerializer, IngredientSerializer, ShoppingListSerializer,
     RecipeDetailedSerializer, FullRecipeSerializer, FavoriteSerializer,
-    AvatarUploadSerializer
+    AvatarUploadSerializer, IngredientInRecipeSerializer
 )
 
 
@@ -173,6 +173,13 @@ class TagViewset(viewsets.ModelViewSet):
 class IngredientViewset(viewsets.ModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = IngredientFilter
+
+
+class IngredientsInRecipesViewset(viewsets.ModelViewSet):
+    queryset = IngredientsInRecipes.objects.all()
+    serializer_class = IngredientInRecipeSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = IngredientFilter
 
