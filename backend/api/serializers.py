@@ -208,16 +208,16 @@ class FullRecipeSerializer(serializers.ModelSerializer):
         ).data
         return data
 
-    # def get_ingredients(self, obj):
-    #     ingredients = IngredientInRecipeSerializer(
-    #         obj.recipes_ingredients.all(), many=True,
-    #     ).data
-    #     for ingredient in ingredients:
-    #         if ingredient['amount'] < 1:
-    #             raise serializers.ValidationError(
-    #                 'Минимальное колличество ингредиента - 1'
-    #             )
-    #     return ingredients
+    def get_ingredients(self, obj):
+        ingredients = IngredientInRecipeSerializer(
+            obj.recipes_ingredients.all(), many=True,
+        ).data
+        for ingredient in ingredients:
+            if ingredient['amount'] < 1:
+                raise serializers.ValidationError(
+                    'Минимальное колличество ингредиента - 1'
+                )
+        return ingredients
 
     def get_is_favorited(self, obj):
         user = self.context.get('request').user
