@@ -199,16 +199,25 @@ class FullRecipeSerializer(serializers.ModelSerializer):
             'name', 'image', 'text', 'cooking_time'
         )
 
-    def get_ingredients(self, obj):
-        ingredients = IngredientInRecipeSerializer(
-            obj.recipes_ingredients.all(), many=True,
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        ingredients = instance.recipes_ingredients.all()
+        data['ingredients'] = IngredientInRecipeSerializer(
+            ingredients,
+            many=True
         ).data
-        for ingredient in ingredients:
-            if ingredient['amount'] < 1:
-                raise serializers.ValidationError(
-                    'Минимальное колличество ингредиента - 1'
-                )
-        return ingredients
+        return data
+
+    # def get_ingredients(self, obj):
+    #     ingredients = IngredientInRecipeSerializer(
+    #         obj.recipes_ingredients.all(), many=True,
+    #     ).data
+    #     for ingredient in ingredients:
+    #         if ingredient['amount'] < 1:
+    #             raise serializers.ValidationError(
+    #                 'Минимальное колличество ингредиента - 1'
+    #             )
+    #     return ingredients
 
     def get_is_favorited(self, obj):
         user = self.context.get('request').user
