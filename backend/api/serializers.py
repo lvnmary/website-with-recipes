@@ -237,6 +237,7 @@ class RecipeDetailedSerializer(FullRecipeSerializer):
         queryset=Tag.objects.all(),
         many=True
     )
+    ingredients = IngredientInRecipeSerializer(many=True)
     author = UserSerializer(read_only=True)
     image = Base64ImageField(required=True)
     is_favorited = serializers.SerializerMethodField()

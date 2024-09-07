@@ -20,12 +20,18 @@ class IngredientAdmin(admin.ModelAdmin):
     empty_value_display = '-пусто-'
 
 
+class IngredientsInRecipeInline(admin.TabularInline):
+    model = IngredientsInRecipes
+    extra = 1
+
+
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
     list_display = ('name', 'author', 'id',)
     list_filter = ('name', 'author', 'tags',)
     search_fields = ('name',)
     empty_value_display = '-пусто-'
+    inlines = (IngredientsInRecipeInline,)
 
 
 @admin.register(IngredientsInRecipes)
