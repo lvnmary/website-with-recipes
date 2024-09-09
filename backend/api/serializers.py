@@ -3,7 +3,7 @@
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
-from django.db import transaction
+# from django.db import transaction
 from drf_extra_fields.fields import Base64ImageField
 from rest_framework import serializers
 
@@ -166,7 +166,7 @@ class IngredientInRecipeSerializer(serializers.ModelSerializer):
 class RecipeSerializer(serializers.ModelSerializer):
     name = serializers.CharField()
     image = Base64ImageField()
-    # id = serializers.IntegerField()
+    id = serializers.IntegerField()
     cooking_time = serializers.IntegerField()
 
     class Meta:
@@ -239,77 +239,33 @@ class RecipeDetailedSerializer(FullRecipeSerializer):
     is_in_shopping_cart = serializers.SerializerMethodField()
     cooking_time = serializers.IntegerField(required=True)
 
-    def validate(self, data):
-        data = super().validate(data)
-        request = self.context['request']
-        get_tags = request.data.get('tags')
-        tags_data = set()
-        if not get_tags:
-            raise serializers.ValidationError(
-                {'tags': ['Обязательное поле']})
-        for tag_data in get_tags:
-            try:
-                tag = Tag.objects.get(pk=tag_data)
-                if tag in tags_data:
-                    raise serializers.ValidationError(
-                        {'tags': ['Такой тег уже есть']})
-                tags_data.add(tag)
-            except Tag.DoesNotExist:
-                raise serializers.ValidationError(
-                    {'Tag': ['Такого тега нет.']})
-        get_ingredients = request.data.get('ingredients')
-        if not get_ingredients:
-            raise serializers.ValidationError(
-                {'ingredients': ['Обязательное поле']})
-        ingredients_set = set()
-        ingredients_data = []
-        for ingredient in get_ingredients:
-            if ingredient['amount'] <= 0:
-                raise serializers.ValidationError(
-                    {'amount': ['Количество не меньше 1']})
-            if ingredient['id'] in ingredients_set:
-                raise serializers.ValidationError(
-                    {'ingredients': ['Такой id занят']})
-            ingredients_set.add(ingredient['id'])
-            try:
-                ingredients = Ingredient.objects.filter(id__in=ingredients_set)
-                ingredients_data.append(
-                    {'ingredient': ingredients.get(pk=ingredient['id']),
-                     'amount': ingredient['amount']})
-            except Ingredient.DoesNotExist:
-                raise serializers.ValidationError(
-                    {'ingredients': ['Такого ингредиента нет']})
-        data['ingredients'] = ingredients_data
-        data['tags'] = tags_data
-        return data
+    def create_ingredients(self, ingredients, recipe):
+        for i in ingredients:
+            ingredient = Ingredient.objects.get(id=i['id'])
+            IngredientsInRecipes.objects.create(
+                ingredient=ingredient, recipe=recipe, amount=i['amount'])
 
-    def create_ingredients(self, data, recipe):
-        IngredientsInRecipes.objects.bulk_create(
-            [IngredientsInRecipes(recipe=recipe, **ingredient_data)
-             for ingredient_data in data],
-        )
+    # @transaction.atomic
+    # def create(self, validated_data):
+    #     validated_data.pop('is_favorited', None)
+    #     validated_data.pop('is_in_shopping_cart', None)
+    #     tags_data = validated_data.pop('tags')
+    #     ingredients_data = validated_data.pop('ingredients')
+    #     recipe = Recipe.objects.create(**validated_data)
+    #     self.create_ingredients(ingredients_data, recipe)
+    #     recipe.tags.set(tags_data)
+    #     return recipe
 
-    @transaction.atomic
-    def create(self, validated_data):
-        validated_data.pop('is_favorited', None)
-        validated_data.pop('is_in_shopping_cart', None)
-        tags_data = validated_data.pop('tags')
-        ingredients_data = validated_data.pop('ingredients')
-        recipe = Recipe.objects.create(**validated_data)
-        self.create_ingredients(ingredients_data, recipe)
-        recipe.tags.set(tags_data)
-        return recipe
-
-    @transaction.atomic
-    def update(self, instance, validated_data):
-        validated_data.pop('is_favorited', None)
-        validated_data.pop('is_in_shopping_cart', None)
-        tags_data = validated_data.pop('tags')
-        ingredients_data = validated_data.pop('ingredients')
-        instance.tags.set(tags_data)
-        instance.ingredients.clear()
-        self.create_ingredients(ingredients_data, instance)
-        return super().update(instance, validated_data)
+    # @transaction.atomic
+    # def update(self, instance, validated_data):
+    #     validated_data.pop('is_favorited', None)
+    #     validated_data.pop('is_in_shopping_cart', None)
+    #     tags_data = validated_data.pop('tags')
+    #     ingredients_data = validated_data.pop('ingredients')
+    #     instance.tags.set(tags_data)
+    #     instance.ingredients.clear()
+    #     self.create_ingredients(ingredients_data, instance)
+    #     return super().update(instance, validated_data)
 
 class ShoppingListSerializer(serializers.ModelSerializer):
     recipes = FullRecipeSerializer()
