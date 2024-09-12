@@ -1,10 +1,13 @@
+import uuid
+
 from django.contrib.auth import get_user_model
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from .constants import (
     TAG_LENGTH, SLUG_LENGTH, INGREDIENT_NAME_LENGTH,
-    MEASUREMENT_UNIT_LENGTH, RECIPE_NAME_LENGTH
+    MEASUREMENT_UNIT_LENGTH, RECIPE_NAME_LENGTH,
+    RECIPE_SLINK_LENGTH
 )
 User = get_user_model()
 
@@ -87,6 +90,12 @@ class Recipe(models.Model):
         auto_now_add=True,
         verbose_name='Дата публикации'
     )
+    short_link = models.SlugField(blank=True, unique=True)
+
+    def save(self, *args, **kwargs):
+        if not self.short_link:
+            self.short_link = str(uuid.uuid4())[:RECIPE_SLINK_LENGTH]
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = 'Рецепт'
