@@ -245,7 +245,9 @@ class RecipeViewset(viewsets.ModelViewSet):
         writer.writerow(['Ингредиент', 'Количество'])
 
         ingredients = IngredientsInRecipes.objects.filter(
-            recipe__in=self.request.user.shopping_users.values_list('recipe', flat=True)
+            recipe__in=self.request.user.shopping_users.values_list(
+                'recipe', flat=True
+            )
         ).values('ingredient__name').annotate(total_amount=Sum('amount'))
 
         for item in ingredients:

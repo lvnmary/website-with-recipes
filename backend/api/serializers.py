@@ -218,7 +218,9 @@ class RecipeCreateSerializer(RecipeSerializer):
         ingredients_data = []
         for ingredient in value:
             if int(ingredient['amount']) <= 0:
-                raise serializers.ValidationError('Количество не может быть меньше 1')
+                raise serializers.ValidationError(
+                    'Количество не может быть меньше 1'
+                )
             if ingredient['id'] in ingredients:
                 raise serializers.ValidationError('Ингредиент уже добавлен')
             ingredients.add(ingredient['id'])
@@ -234,8 +236,12 @@ class RecipeCreateSerializer(RecipeSerializer):
 
     def validate(self, data):
         data = super().validate(data)
-        data['tags'] = self.validate_tags(self.context['request'].data.get('tags'))
-        data['ingredients'] = self.validate_ingredients(self.context['request'].data.get('ingredients'))
+        data['tags'] = self.validate_tags(
+            self.context['request'].data.get('tags')
+        )
+        data['ingredients'] = self.validate_ingredients(
+            self.context['request'].data.get('ingredients')
+        )
         return data
 
     def validate_image(self, value):
