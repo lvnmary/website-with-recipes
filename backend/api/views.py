@@ -1,31 +1,29 @@
-import csv
-import io
-
-from django.db.models import Exists, OuterRef, Sum
+from django.db.models import Exists, OuterRef
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status, viewsets, filters
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import (
     LimitOffsetPagination, PageNumberPagination
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from djoser.views import UserViewSet
 from djoser.serializers import SetPasswordSerializer
+from djoser.views import UserViewSet
 
 from recipes.models import (
-    Tag, Ingredient, Recipe, IngredientsInRecipes, Favorites, ShoppingList
+    Favorites, Ingredient, IngredientsInRecipes, Recipe, ShoppingList, Tag
 )
-from users.models import User, Subscribe
+from users.models import Subscribe, User
+
 from .filters import IngredientFilter, RecipeFilter
-from .permissions import IsAuthorOrAdminOrReadOnly
+from .permissions import IsAuthorOrAuthenticated
+from .services import generate_shopping_list
 from .serializers import (
-    UserSerializer, SubscribeSerializer,
-    TagSerializer, IngredientSerializer, ShoppingListSerializer,
-    RecipeCreateSerializer, RecipeSerializer, FavoriteSerializer,
-    AvatarUploadSerializer, IngredientInRecipeSerializer
+    AvatarUploadSerializer, FavoriteSerializer, IngredientInRecipeSerializer,
+    IngredientSerializer, RecipeCreateSerializer, RecipeSerializer,
+    ShoppingListSerializer, SubscribeSerializer, TagSerializer, UserSerializer
 )
 
 
@@ -33,7 +31,7 @@ class UserViewset(UserViewSet):
     queryset = User.objects.all()
     filter_backends = [filters.SearchFilter]
     serializer_class = UserSerializer
-    permission_classes = (IsAuthorOrAdminOrReadOnly,)
+    permission_classes = (IsAuthorOrAuthenticated,)
     search_fields = ('username', 'email',)
     pagination_class = LimitOffsetPagination
     http_method_names = ['get', 'post', 'put', 'delete']
@@ -55,8 +53,7 @@ class UserViewset(UserViewSet):
         url_path='me'
     )
     def me(self, request):
-        user = request.user
-        serializer = self.get_serializer(user)
+        serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'],
@@ -88,20 +85,18 @@ class UserViewset(UserViewSet):
         permission_classes=[IsAuthenticated],
     )
     def subscribe(self, request, *args, **kwargs):
-        request_user = self.request.user
         get_user = get_object_or_404(User, pk=kwargs[self.pk_url_kwarg])
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request_user, following_user=get_user)
+        serializer.save(user=self.request.user, following_user=get_user)
         get_headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED,
                         headers=get_headers)
 
     @subscribe.mapping.delete
     def unsubscribe(self, request, *args, **kwargs):
-        request_user = self.request.user
         get_user = get_object_or_404(User, pk=kwargs[self.pk_url_kwarg])
-        subscription = request_user.follower.filter(
+        subscription = self.request.user.follower.filter(
             following_user=get_user).first()
         if subscription:
             subscription.delete()
@@ -116,38 +111,10 @@ class UserViewset(UserViewSet):
         return UserSerializer
 
 
-class TagViewset(viewsets.ModelViewSet):
+class TagViewset(viewsets.ReadOnlyModelViewSet):
     queryset = Tag.objects.all().order_by('id')
     serializer_class = TagSerializer
-
-    def create(self, request, *args, **kwargs):
-        return Response(
-            {'detail': 'Method not allowed'},
-            status=status.HTTP_405_METHOD_NOT_ALLOWED
-        )
-
-    def update(self, request, *args, **kwargs):
-        return Response(
-            {'detail': 'Method not allowed'},
-            status=status.HTTP_405_METHOD_NOT_ALLOWED
-        )
-
-    def partial_update(self, request, *args, **kwargs):
-        return Response(
-            {'detail': 'Method not allowed'},
-            status=status.HTTP_405_METHOD_NOT_ALLOWED
-        )
-
-    def destroy(self, request, *args, **kwargs):
-        return Response(
-            {'detail': 'Method not allowed'},
-            status=status.HTTP_405_METHOD_NOT_ALLOWED
-        )
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+    pagination_class = None
 
 
 class IngredientViewset(viewsets.ModelViewSet):
@@ -171,7 +138,7 @@ class RecipeViewset(viewsets.ModelViewSet):
         'author', 'ingredients', 'tags'
     )
     serializer_class = RecipeCreateSerializer
-    permission_classes = [IsAuthorOrAdminOrReadOnly]
+    permission_classes = (IsAuthorOrAuthenticated,)
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilter
     ordering = ('pub_date',)
@@ -180,18 +147,7 @@ class RecipeViewset(viewsets.ModelViewSet):
     pagination_class = PageNumberPagination
 
     def get_queryset(self):
-        user = self.request.user
-        queryset = super().get_queryset()
-        if user.is_authenticated:
-            return queryset.annotate(
-                is_favorite=Exists(
-                    user.favorites_users.filter(recipe=OuterRef('pk'))),
-                is_in_shopping_cart=Exists(
-                    user.shopping_users.filter(recipe=OuterRef('pk'))),
-                is_subscribed=Exists(
-                    user.follower.filter(following_user=OuterRef('author')))
-            )
-        return queryset
+        return super().get_queryset()
 
     def get_serializer_class(self):
         if self.action in ['shopping_cart', 'download_shopping_cart']:
@@ -230,7 +186,7 @@ class RecipeViewset(viewsets.ModelViewSet):
 
     @action(methods=['get'], detail=False, )
     def download_shopping_cart(self, request, pk=None):
-        shop_list = self.get_shop_list()
+        shop_list = generate_shopping_list(self.request.user)
         response = FileResponse(iter([shop_list.getvalue()]),
                                 content_type='text/csv')
         response[
@@ -238,23 +194,6 @@ class RecipeViewset(viewsets.ModelViewSet):
                 'attachment; filename="shopping_cart.csv"'
         )
         return response
-
-    def get_shop_list(self):
-        shop_list = io.StringIO()
-        writer = csv.writer(shop_list)
-        writer.writerow(['Ингредиент', 'Количество'])
-
-        ingredients = IngredientsInRecipes.objects.filter(
-            recipe__in=self.request.user.shopping_users.values_list(
-                'recipe', flat=True
-            )
-        ).values('ingredient__name').annotate(total_amount=Sum('amount'))
-
-        for item in ingredients:
-            writer.writerow([item['ingredient__name'], item['total_amount']])
-
-        shop_list.seek(0)
-        return shop_list
 
     @action(methods=['post'], detail=True)
     def favorite(self, request, pk=None):

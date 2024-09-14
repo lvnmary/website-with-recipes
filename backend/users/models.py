@@ -1,10 +1,11 @@
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.validators import UnicodeUsernameValidator
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from .constants import (
-    USERNAME_LENGTH, FNAME_LENGTH, LNAME_LENGTH, EMAIL_LENGTH,
-    PASSWORD_LENGTH, USER, ADMIN, ROLES
+    ADMIN, EMAIL_LENGTH, FNAME_LENGTH, LNAME_LENGTH,
+    PASSWORD_LENGTH, ROLE_LENGTH, ROLES, USER, USERNAME_LENGTH
 )
 
 
@@ -35,7 +36,7 @@ class User(AbstractUser):
         upload_to='images/'
     )
     role = models.CharField(
-        max_length=max(len(role[0]) for role in ROLES),
+        max_length=ROLE_LENGTH,
         verbose_name='Роль',
         choices=ROLES,
         default=USER,
@@ -78,8 +79,16 @@ class Subscribe(models.Model):
             models.UniqueConstraint(
                 fields=['user', 'following_user'],
                 name='unique_subscribe'
+            ),
+            models.CheckConstraint(
+                check=~models.Q(user=models.F('following_user')),
+                name='prevent_self_follow'
             )
         ]
+
+    def clean(self):
+        if self.user == self.following_user:
+            raise ValidationError('Нельзя подписаться на самого себя')
 
     def __str__(self):
         return (
