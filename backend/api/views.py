@@ -18,8 +18,8 @@ from recipes.models import (
 from users.models import Subscribe, User
 
 from .filters import IngredientFilter, RecipeFilter
-from .permissions import IsAuthorOrAuthenticated
-from .services import generate_shopping_list
+from .permissions import IsAuthorOrAuthenticatedOrReadOnly
+from .services import generate_shopping_list, get_ingredients
 from .serializers import (
     AvatarUploadSerializer, FavoriteSerializer, IngredientInRecipeSerializer,
     IngredientSerializer, RecipeCreateSerializer, RecipeSerializer,
@@ -31,7 +31,7 @@ class UserViewset(UserViewSet):
     queryset = User.objects.all()
     filter_backends = [filters.SearchFilter]
     serializer_class = UserSerializer
-    permission_classes = (IsAuthorOrAuthenticated,)
+    permission_classes = (IsAuthorOrAuthenticatedOrReadOnly,)
     search_fields = ('username', 'email',)
     pagination_class = LimitOffsetPagination
     http_method_names = ['get', 'post', 'put', 'delete']
@@ -138,7 +138,7 @@ class RecipeViewset(viewsets.ModelViewSet):
         'author', 'ingredients', 'tags'
     )
     serializer_class = RecipeCreateSerializer
-    permission_classes = (IsAuthorOrAuthenticated,)
+    permission_classes = (IsAuthorOrAuthenticatedOrReadOnly,)
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilter
     ordering = ('pub_date',)
@@ -186,7 +186,8 @@ class RecipeViewset(viewsets.ModelViewSet):
 
     @action(methods=['get'], detail=False, )
     def download_shopping_cart(self, request, pk=None):
-        shop_list = generate_shopping_list(self.request.user)
+        ingredients_queryset = get_ingredients(self.request.user)
+        shop_list = generate_shopping_list(ingredients_queryset)
         response = FileResponse(iter([shop_list.getvalue()]),
                                 content_type='text/csv')
         response[
