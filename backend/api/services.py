@@ -13,6 +13,7 @@ def get_ingredients(user):
         total_amount=Sum('amount')
     ).order_by('ingredient__name')
 
+
 def generate_shopping_list(ingredients_queryset):
     shop_list = io.StringIO()
     writer = csv.writer(shop_list)
