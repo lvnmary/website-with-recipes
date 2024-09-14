@@ -5,6 +5,7 @@ from django.db.models import Sum
 
 from recipes.models import IngredientsInRecipes
 
+
 def generate_shopping_list(user):
     shop_list = io.StringIO()
     writer = csv.writer(shop_list)
